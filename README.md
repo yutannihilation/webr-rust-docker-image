@@ -21,7 +21,7 @@ cd path/to/your_R_package
 echo '^repo$' >> .Rbuildignore
 
 # For some reason, rwasm::add_pkg() includes .git in the source package in this case (possibly a bug?).
-# Since it's so heavy and only the binary package will be installed, you should probably avoid commiting it.
+# Since it's so heavy and only the binary package will be installed, you should probably avoid committing it.
 echo '/repo/src' >> .gitignore
 
 docker run -it --rm -v ${PWD}:/pkg -w /pkg ghcr.io/yutannihilation/webr-rust:main R
