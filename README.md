@@ -4,9 +4,55 @@ Build a version of r-wasm/webr Docker image with Rust toolchain.
 
 ## How to build and test a Rust-powered R package
 
-### Place `Makevars.webr`
+### Place `configure` and `Makevars.in`
 
-See [this commit](https://github.com/georgestagg/hellorust-wasm/commit/7383d37ee1c28fc3a86cd941aafc9ac563978c20).
+<details>
+<summary>Example</summary>
+
+```sh
+if [ "$(uname)" = "Emscripten" ]; then
+  TARGET="wasm32-unknown-emscripten"
+fi
+
+sed -e "s/@TARGET@/${TARGET}/" src/Makevars.in > src/Makevars
+```
+
+```make
+TARGET = @TARGET@
+
+CRATE_NAME = foo
+
+TARGET_DIR = ./rust/target
+LIBDIR = $(TARGET_DIR)/$(TARGET)/release
+STATLIB = $(LIBDIR)/lib$(CRATE_NAME).a
+PKG_LIBS = -L$(LIBDIR) -l$(CRATE_NAME)
+
+CARGO_BUILD_ARGS = --lib --release --manifest-path=./rust/Cargo.toml --target-dir $(TARGET_DIR)
+
+all: C_clean
+
+$(SHLIB): $(STATLIB)
+
+$(STATLIB):
+	export PATH="$(PATH):$(HOME)/.cargo/bin" && \
+	  if [ "$(TARGET)" != "wasm32-unknown-emscripten" ]; then \
+	    cargo build $(CARGO_BUILD_ARGS); \
+	  else \
+	    export CC="$(CC)" && \
+	    export CFLAGS="$(CFLAGS)" && \
+	    export CARGO_PROFILE_RELEASE_PANIC="abort" && \
+	    cargo +nightly build $(CARGO_BUILD_ARGS) --target $(TARGET) -Zbuild-std=panic_abort,std; \
+	  fi
+
+C_clean:
+	rm -Rf $(SHLIB) $(STATLIB) $(OBJECTS)
+
+clean:
+	rm -Rf $(SHLIB) $(STATLIB) $(OBJECTS) rust/target
+```
+
+</details>
+
 
 ### Follow the official guidance
 
