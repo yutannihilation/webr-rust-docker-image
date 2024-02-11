@@ -2,12 +2,13 @@ ARG BASE=ghcr.io/r-wasm/flang-wasm:main
 FROM $BASE as webr
 
 # Setup environment for Emscripten
-ENV PATH="/opt/emsdk:/opt/emsdk/upstream/emscripten:/usr/local/cargo/bin:${PATH}"
+ENV PATH="/opt/emsdk:/opt/emsdk/upstream/emscripten:${PATH}"
 ENV EMSDK="/opt/emsdk"
 ENV WEBR_ROOT="/opt/webr"
 ENV EM_NODE_JS="/usr/bin/node"
 ENV EMFC="/opt/flang/host/bin/flang-new"
 
+# Step 1: Build fake Rust DEB packages
 FROM webr as deb_build
 
 RUN mkdir /opt/fake_rust/ && \
@@ -21,9 +22,11 @@ RUN mkdir /opt/fake_rust/ && \
 	equivs-build fake_rust && \
     mv rustc_99.0_all.deb cargo_99.0_all.deb /opt/fake_rust/
 
+# Step 2: Do the necessary setups
 FROM webr as scratch
 
-# Install fake Rust DEB package to prevent from installed
+# Install the fake Rust DEB packages. This makes sure the toolchain installed in
+# the later step is used instead of the one that the distro (Ubuntu) provides.
 COPY --from=deb_build /opt/fake_rust /tmp/fake_rust
 RUN dpkg -i /tmp/fake_rust/rustc_99.0_all.deb && \
     dpkg -i /tmp/fake_rust/cargo_99.0_all.deb
@@ -63,7 +66,6 @@ RUN make
 # Based on the official Rust docker image: https://github.com/rust-lang/docker-rust/blob/master/Dockerfile-debian.template
 ENV RUSTUP_HOME=/usr/local/rustup
 ENV CARGO_HOME=/usr/local/cargo
-
 RUN set -eux; \
     wget "https://static.rust-lang.org/rustup/archive/1.26.0/x86_64-unknown-linux-gnu/rustup-init"; \
     echo "0b2f6c8f85a3d02fde2efc0ced4657869d73fccfce59defb4e8d29233116e6db *rustup-init" | sha256sum -c -; \
@@ -87,8 +89,11 @@ RUN rm -rf /tmp/rig /tmp/fake_rust
 RUN rm -rf libs/download libs/build src/node_modules R/download
 RUN cd src && make clean
 
-# Squash docker image layers
+# Step 3: Squash docker image layers
 FROM webr
 COPY --from=scratch / /
+ENV PATH="/usr/local/cargo/bin:${PATH}"
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV CARGO_HOME=/usr/local/cargo
 WORKDIR /root
 SHELL ["/bin/bash", "-c"]
